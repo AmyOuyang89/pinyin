@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>趣味汉字拼音抽查系统</title>
+    <style>
+        body {
+            background-color: #e0f7fa; /* 默认浅绿色背景 */
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column;
+            transition: background-color 0.5s ease;
+        }
+        .container {
+            text-align: center;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            max-width: 90%;
+            width: 400px;
+        }
+        .characters {
+            font-size: 24px;
+            margin: 20px 0;
+            line-height: 1.5;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .character-card {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.5s ease-in-out;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .character-card:hover {
+            transform: scale(1.05);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #4caf50;
+            color: white;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            max-width: 90%;
+            width: 300px;
+        }
+        .modal-content {
+            text-align: left;
+            font-size: 18px;
+            line-height: 1.5;
+        }
+        .close-btn {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            font-size: 14px;
+            background-color: #f44336;
+        }
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        .score {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #4caf50;
+            font-weight: bold;
+        }
+        .theme-selector {
+            margin-bottom: 10px;
+        }
+        .theme-selector button {
+            padding: 5px 10px;
+            font-size: 14px;
+            margin: 2px;
+            background-color: #2196f3;
+        }
+        .theme-selector button:hover {
+            background-color: #1e88e5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="score">积分：<span id="score">0</span></div>
+        <div class="theme-selector">
+            <button onclick="changeTheme('default')">默认主题</button>
+            <button onclick="changeTheme('forest')">森林主题</button>
+            <button onclick="changeTheme('space')">星空主题</button>
+        </div>
+        <div class="characters" id="characters"></div>
+        <button id="startBtn">开始随机抽查</button>
+        <button id="pauseBtn" disabled>暂停</button>
+        <button id="showPinyinBtn" disabled>查看汉字拼音</button>
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+    <div class="modal" id="modal">
+        <div class="modal-content" id="modalContent"></div>
+        <button class="close-btn" id="closeBtn">关闭弹窗</button>
+    </div>
+
+    <audio id="clickSound" src="https://www.soundjay.com/button/button-3.mp3"></audio>
+    <audio id="rewardSound" src="https://www.soundjay.com/misc/success-bell-01.mp3"></audio>
+
+    <script>
+        // 小学一到四年级常用汉字拼音库（示例）
+        const pinyinData = [
+            { char: '爱', pinyin: 'ài' },
+            { char: '爸', pinyin: 'bà' },
+            { char: '猫', pinyin: 'māo' },
+            { char: '书', pinyin: 'shū' },
+            { char: '学', pinyin: 'xué' },
+            { char: '校', pinyin: 'xiào' },
+            { char: '老', pinyin: 'lǎo' },
+            { char: '师', pinyin: 'shī' },
+            { char: '朋', pinyin: 'péng' },
+            { char: '友', pinyin: 'yǒu' },
+            { char: '快', pinyin: 'kuài' },
+            { char: '乐', pinyin: 'lè' },
+            { char: '水', pinyin: 'shuǐ' },
+            { char: '火', pinyin: 'huǒ' },
+            { char: '山', pinyin: 'shān' },
+            { char: '石', pinyin: 'shí' },
+            { char: '天', pinyin: 'tiān' },
+            { char: '地', pinyin: 'dì' },
+            { char: '人', pinyin: 'rén' },
+            { char: '口', pinyin: 'kǒu' }
+        ];
+
+        let intervalId;
+        let currentChars = [];
+        let score = 0;
+        const charactersElement = document.getElementById('characters');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const showPinyinBtn = document.getElementById('showPinyinBtn');
+        const modal = document.getElementById('modal');
+        const modalContent = document.getElementById('modalContent');
+        const overlay = document.getElementById('overlay');
+        const closeBtn = document.getElementById('closeBtn');
+        const scoreElement = document.getElementById('score');
+        const clickSound = document.getElementById('clickSound');
+        const rewardSound = document.getElementById('rewardSound');
+
+        // 随机抽取4个汉字
+        function getRandomChars() {
+            currentChars = [];
+            charactersElement.innerHTML = '';
+            for (let i = 0; i < 4; i++) {
+                const randomIndex = Math.floor(Math.random() * pinyinData.length);
+                currentChars.push(pinyinData[randomIndex]);
+                const card = document.createElement('div');
+                card.className = 'character-card';
+                card.textContent = pinyinData[randomIndex].char;
+                card.addEventListener('click', () => playPinyin(pinyinData[randomIndex].pinyin));
+                charactersElement.appendChild(card);
+            }
+        }
+
+        // 播放拼音读音
+        function playPinyin(pinyin) {
+            const utterance = new SpeechSynthesisUtterance(pinyin);
+            utterance.lang = 'zh-CN';
+            speechSynthesis.speak(utterance);
+        }
+
+        // 开始随机抽查
+        startBtn.addEventListener('click', () => {
+            clickSound.play();
+            startBtn.disabled = true;
+            pauseBtn.disabled = false;
+            showPinyinBtn.disabled = true;
+            intervalId = setInterval(getRandomChars, 500);
+        });
+
+        // 暂停抽查
+        pauseBtn.addEventListener('click', () => {
+            clickSound.play();
+            clearInterval(intervalId);
+            startBtn.disabled = false;
+            pauseBtn.disabled = true;
+            showPinyinBtn.disabled = false;
+            // 随机奖励
+            if (Math.random() > 0.5) {
+                rewardSound.play();
+                alert('你真棒！继续加油！');
+                score += 10;
+                scoreElement.textContent = score;
+            }
+        });
+
+        // 显示拼音弹窗
+        showPinyinBtn.addEventListener('click', () => {
+            clickSound.play();
+            modalContent.innerHTML = currentChars.map(c => `${c.char}: ${c.pinyin}`).join('<br>');
+            modal.style.display = 'block';
+            overlay.style.display = 'block';
+        });
+
+        // 关闭弹窗
+        closeBtn.addEventListener('click', () => {
+            clickSound.play();
+            modal.style.display = 'none';
+            overlay.style.display = 'none';
+        });
+
+        // 切换主题
+        function changeTheme(theme) {
+            const body = document.body;
+            if (theme === 'default') {
+                body.style.backgroundColor = '#e0f7fa';
+            } else if (theme === 'forest') {
+                body.style.backgroundColor = '#dcedc8';
+            } else if (theme === 'space') {
+                body.style.backgroundColor = '#0d47a1';
+                body.style.color = '#ffffff';
+            }
+        }
+    </script>
+</body>
+</html>
